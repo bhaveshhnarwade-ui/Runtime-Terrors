@@ -80,40 +80,20 @@ function formatPrice(amount) {
 
         startOrderingBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking location…';
 
-        // Check permission state first so we never silently fail —
-        // if previously denied the browser won't prompt again, so we tell
-        // the user exactly how to fix it instead of a cryptic error.
-        if (navigator.permissions) {
-            navigator.permissions.query({ name: 'geolocation' })
-                .then(result => {
-                    if (result.state === 'denied') {
-                        // Already blocked — browser won't show a prompt at all
-                        showLocationErrorWithRetry("Location blocked. Click the 🔒 icon in the address bar → allow location → refresh.");
-                        startOrderingBtn.disabled = false;
-                        startOrderingBtn.innerHTML = '<i class="fa-solid fa-location-dot"></i> Begin Ordering';
-                    } else {
-                        // 'granted' or 'prompt' — proceed; browser will ask if needed
-                        requestGeolocation();
-                    }
-                })
-                .catch(() => requestGeolocation()); // Permissions API unavailable — try directly
-        } else {
-            requestGeolocation();
-        }
-    }
-
-    function requestGeolocation() {
+        // Call getCurrentPosition directly — browser will show its own prompt
+        // for new/reset users. For previously denied users the error callback
+        // fires with code 1 and we show reset instructions.
         navigator.geolocation.getCurrentPosition(
             (pos) => callDeliveryAPI(pos.coords.latitude, pos.coords.longitude),
             (err) => {
                 console.warn('Geolocation Error:', err.code, err.message);
                 let errorMsg = "Enable location permission and try again.";
                 if (err.code === 1) {
-                    errorMsg = "Location blocked. Allow it in browser settings → refresh.";
+                    errorMsg = "Location blocked. Click 🔒 in address bar → Allow → Refresh.";
                 } else if (err.code === 2) {
                     errorMsg = "Location unavailable. Check device settings.";
                 } else if (err.code === 3) {
-                    errorMsg = "Location timed out. Check your network and retry.";
+                    errorMsg = "Location timed out. Check network and retry.";
                 }
                 showLocationErrorWithRetry(errorMsg);
             },
