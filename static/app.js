@@ -74,28 +74,47 @@ function formatPrice(amount) {
     // ── Geolocation + Delivery Range Check ────────────────────────────────
     function checkUserLocation() {
         if (!navigator.geolocation) {
-            showLocationError("Location services are not supported by your browser. We need your location to deliver.");
+            showLocationError("Location not supported by your browser.");
             return;
         }
-        
-        // Show that we're checking location
+
         startOrderingBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking location…';
-        
+
+        // Check permission state first so we never silently fail —
+        // if previously denied the browser won't prompt again, so we tell
+        // the user exactly how to fix it instead of a cryptic error.
+        if (navigator.permissions) {
+            navigator.permissions.query({ name: 'geolocation' })
+                .then(result => {
+                    if (result.state === 'denied') {
+                        // Already blocked — browser won't show a prompt at all
+                        showLocationErrorWithRetry("Location blocked. Click the 🔒 icon in the address bar → allow location → refresh.");
+                        startOrderingBtn.disabled = false;
+                        startOrderingBtn.innerHTML = '<i class="fa-solid fa-location-dot"></i> Begin Ordering';
+                    } else {
+                        // 'granted' or 'prompt' — proceed; browser will ask if needed
+                        requestGeolocation();
+                    }
+                })
+                .catch(() => requestGeolocation()); // Permissions API unavailable — try directly
+        } else {
+            requestGeolocation();
+        }
+    }
+
+    function requestGeolocation() {
         navigator.geolocation.getCurrentPosition(
             (pos) => callDeliveryAPI(pos.coords.latitude, pos.coords.longitude),
-            (err) => { 
+            (err) => {
                 console.warn('Geolocation Error:', err.code, err.message);
-                
-                // Provide helpful error messages based on error code
-                let errorMsg = "Please enable location permissions to verify delivery range.";
+                let errorMsg = "Enable location permission and try again.";
                 if (err.code === 1) {
-                    errorMsg = "Permission denied. Please enable location in browser settings and refresh.";
+                    errorMsg = "Location blocked. Allow it in browser settings → refresh.";
                 } else if (err.code === 2) {
-                    errorMsg = "Location unavailable. Ensure location is enabled on your device.";
+                    errorMsg = "Location unavailable. Check device settings.";
                 } else if (err.code === 3) {
-                    errorMsg = "Location request timed out. Please try again or check your network.";
+                    errorMsg = "Location timed out. Check your network and retry.";
                 }
-                
                 showLocationErrorWithRetry(errorMsg);
             },
             { timeout: 15000, maximumAge: 0, enableHighAccuracy: false }
